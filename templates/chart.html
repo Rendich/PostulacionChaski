@@ -1,0 +1,232 @@
+<head>
+    <meta charset="utf-8" />
+    <title>Chaski Challenge for Data Engineer</title>
+    <!-- bootstrap -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+    <!-- chartjs -->
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.6.0/chart.min.js'></script>
+    <!-- chartjs boxplot -->
+    <script src='https://unpkg.com/@sgratzl/chartjs-chart-boxplot@3.6.0/build/index.umd.min.js'></script>
+    <style>
+	    h1 {
+	      text-align: center;
+	    }
+	    h2 {
+	      text-align: center;
+	    }
+	    h3 {
+	      text-align: right;
+	    }
+    </style>
+    </head>
+    <div class="container-fluid">
+	  <h1> Activity Report - {{title}} </h1>
+    
+      <div class="row">
+        <div class="col-sm-12" style="background-color:lavender;">
+            <div id="container1" style="width: 100%;">
+              <canvas id="canvas_timeserie"  ></canvas>
+            </div>
+        </div>
+      </div>
+    
+      <div class="row">
+        <div class="col-sm-6" style="background-color:lavender;">
+            <div id="container3">
+              <canvas id="canvas_horizontal"></canvas>
+            </div>
+        </div>
+    
+        <div class="col-sm-6" style="background-color:lavender;">
+            <div id="container2">
+              <canvas id="canvas_boxplot"></canvas>
+            </div>
+        </div>
+      </div>
+    </div>
+    <table>
+            <tr>
+                <th>Var</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td> total_time</td>
+                <td> {{info["total_time"]}}</td>
+            </tr>
+            <tr>
+                <td> min</td>
+                <td> {{info["min"]}}</td>
+            </tr>
+            <tr>
+                <td> max</td>
+                <td> {{info["max"]}}</td>
+            </tr>
+            <tr>
+                <td> avg</td>
+                <td> {{info["avg"]}}</td>
+            </tr>
+            <tr>
+                <td>date_time </td>
+                <td>{{info["date_time"]}} </td>
+            </tr>
+            <tr>
+                <td>zone_threshold </td>
+                <td>{{info["zone_threshold"]}} </td>
+            </tr>
+            
+            <tr>
+                <td> zones</td>
+                <td>{{info["zones"]}} </td>
+            </tr>
+            <tr>
+                <td>visual_report </td>
+                <td><a href='{{info["visual_report"]}}'>{{info["visual_report"]}}</a></td>
+            </tr>
+            <tr>
+                <td>histogram </td>
+                <td>{{info["histogram"]}} </td>
+            </tr>
+    </table>
+    <script>
+	    band_colors = [
+		    "#0000FF",
+		    "#000088",
+		    "#880088",
+		    "#FF0000",
+	    ];
+	    const hex2rgba = (hex, alpha = 1) => {
+	      const [r, g, b] = hex.match(/\w\w/g).map(x => parseInt(x, 16));
+	      return `rgba(${r},${g},${b},${alpha})`;
+	    };
+	    band_colors2 = []
+	    band_colors.forEach(b => band_colors2.push( hex2rgba(b, .5)));
+	    backgroundColor = 'rgb(255, 99, 132)';
+
+	    aux_data = []
+	    {% for l in labels_bar  %}
+		    {%- if loop.index < 5 %}
+		    aux_data.push({
+	                type: 'line',
+	                label: '{{ l| safe }}', // Name the series
+	                data: {{ 100*[info["zone_threshold"][loop.index0]] }}, // Specify the data values array
+	                //fill: true,
+	                borderColor: band_colors[{{loop.index0}}], // Add custom color border (Line)
+	                backgroundColor: band_colors2[{{loop.index0}}], // Add custom color background (Points and Fill)
+	                borderWidth: 1, // Specify bar border width
+	                pointStyle: "line"
+		            })
+		    {% endif %}
+	    {% endfor %}
+	    // scaled value for time formatting
+	    const seconds2time = (value) => {
+	        var date = new Date(0);
+	        date.setSeconds( (value * {{info["total_time"]}})/100 ); // specify value for SECONDS here
+	        return date.toISOString().substr(11, 8);
+	    };
+	    /* timeserie plot */
+	    const timeserie_ctx = document.getElementById('canvas_timeserie').getContext('2d');
+	    const canvas_timeserie = new Chart(timeserie_ctx, {
+	        type: 'line',
+	        data: {
+	            labels: {{labels}},
+	            datasets: [
+	            {
+	                label: 'Respiration Rate [BPM]',
+	                data: {{info["histogram"] | safe}},
+					backgroundColor: backgroundColor,
+					borderColor: 'rgb(255, 99, 132)',
+	                borderWidth: 1
+	            },
+	            ...aux_data
+	            ],
+	        },
+	        options: {
+	            plugins: {
+	                tooltip: {
+	                    callbacks: {
+	                        title: function(tooltipItem) {
+	                            datasetIndex = tooltipItem[0]["datasetIndex"]
+	                            if (datasetIndex != 0){
+	                                return;
+	                            }
+	                            value = tooltipItem[0]['label'];
+	                        	return seconds2time(value);
+	                        },
+	                        label: function(tooltipItem) { 
+	                            return tooltipItem["dataset"]["label"];
+	                        }
+	                    }
+	                }
+	            },
+	            scales: {
+	                y: {
+	                    title: { display: true, text: 'BPM'} ,
+	                    beginAtZero: true
+	                },
+	                x: { 
+	                    title: { display: true, text: 'Time (hh:mm:ss)' , time: { unit: 'minute' }},
+	                    ticks: {
+	                        callback: function(value, index, values) {
+	                        	return seconds2time(value);
+	                        }
+	                    }
+	                }
+	            }
+	        }
+	    });
+	    /* boxplot */
+	    const boxplotData = {
+	      labels: ['Signal Frequency Bpm Statistic'],
+	      datasets: [{
+	        label: 'Boxplot for histogram points (ONLY N=100)',
+	        backgroundColor: backgroundColor,
+	        borderColor: 'red',
+	        borderWidth: 1,
+	        outlierColor: '#999999',
+	        padding: 10,
+	        itemRadius: 0,
+	        data: [
+	          {{ info["histogram_values"] }}
+	        ]
+	      }, 
+	      ]
+	    };
+	    window.onload = () => {
+	      const boxplot_ctx = document.getElementById("canvas_boxplot").getContext("2d");
+	      window.myBar = new Chart(boxplot_ctx, {
+	        type: 'boxplot',
+	        data: boxplotData,
+	        options: {
+	          responsive: true,
+	          legend: { position: 'top', },
+	          title: {
+	            display: true,
+	            text: 'Chart.js Box Plot Chart'
+	          }
+	        }
+	      });
+	    };
+	    /* horizontal barplot */
+	    var horizontal_ctx = document.getElementById("canvas_horizontal").getContext("2d");
+	    var horizontalData = {
+	        labels: {{ labels_bar| safe }},
+	        datasets: [{
+	            label: "% in Zone",
+	            data: {{ round_values }},
+	            backgroundColor: [...band_colors, "#FF00FF"],
+	            hoverBackgroundColor: ["#FCCE56"]
+	        }]
+	    };
+	    var horizontalChart = new Chart(horizontal_ctx, {
+	        type: 'bar',
+	        data: horizontalData,
+	          options: {
+	            indexAxis: 'y',
+	                legend: {
+	                    display: false
+	                }
+	          }
+	    });
+    </script>
